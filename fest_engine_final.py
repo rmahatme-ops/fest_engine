@@ -1,5 +1,5 @@
 """
-Fest Engine - one file version (Python + Streamlit).
+Fest Engine - one file version (Python + Streamlit), version 2 with a better interface.
 Run with:   streamlit run fest_engine_final.py
 Part 1 is the maths (pure Python). Part 2 is the web page.
 """
@@ -188,8 +188,53 @@ def print_plan(m):
 
 
 # ======================= PART 2: THE WEB PAGE =======================
+import html
 
 st.set_page_config(page_title="Fest Engine", layout="wide")
+
+LEVEL_COLOURS = ["#d5ecee", "#fbdce8", "#e1e4fa", "#fdeccb", "#daf0d8", "#efdcf5"]
+
+# Styling (works in both light and dark theme)
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;700;800&display=swap');
+html, body, .stApp { font-family: 'Figtree', 'Segoe UI', system-ui, sans-serif; }
+.block-container { padding-top: 2rem; max-width: 1200px; }
+footer { visibility: hidden; }
+.hero { border-left: 6px solid #d6246e; padding: 4px 0 4px 18px; margin-bottom: 20px; }
+.hero h1 { margin: 0; padding: 0; font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.hero h1 span { color: #d6246e; }
+.hero p { margin: 6px 0 0 0; opacity: .75; max-width: 62ch; }
+.card { border: 1px solid rgba(128,128,128,.3); border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; background: rgba(128,128,128,.07); }
+.card h3 { margin: 0 0 8px 0; }
+.step { display: flex; gap: 12px; margin: 10px 0; align-items: flex-start; }
+.num { background: #0e7c86; color: #fff; font-weight: 800; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex: none; }
+.scroll { overflow-x: auto; }
+table.sched { border-collapse: collapse; width: 100%; font-size: 14px; }
+.sched th { background: #0e7c86; color: #fff; text-align: left; padding: 9px 12px; border: 1px solid rgba(128,128,128,.35); }
+.sched td { padding: 9px 12px; border: 1px solid rgba(128,128,128,.35); vertical-align: top; color: #14262b; min-width: 140px; }
+.sched td.slot { font-weight: 700; background: rgba(128,128,128,.15); color: inherit; min-width: 80px; }
+.sched td.free { background: rgba(128,128,128,.07); color: inherit; opacity: .5; }
+.sched .who { display: block; font-size: 12px; opacity: .7; margin-top: 2px; }
+.chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 16px 0; }
+.pill { background: rgba(14,124,134,.16); border: 1px solid rgba(14,124,134,.55); border-radius: 4px; padding: 3px 11px; font-size: 14px; }
+.arrow { color: #d6246e; font-weight: 800; }
+</style>
+""", unsafe_allow_html=True)
+
+
+def esc(text):
+    return html.escape(str(text))
+
+
+def chain_html(names_in_order):
+    parts = []
+    for i, nm in enumerate(names_in_order):
+        if i > 0:
+            parts.append('<span class="arrow">&rarr;</span>')
+        parts.append(f'<span class="pill">{esc(nm)}</span>')
+    return '<div class="chain">' + "".join(parts) + "</div>"
+
 
 # --- Data kept between clicks ---
 if "events" not in st.session_state:
@@ -200,160 +245,201 @@ events = st.session_state.events
 rules = st.session_state.rules
 names = [e[0] for e in events]
 
-st.title("Fest Engine")
-st.caption("Can discrete maths organise a college fest? Add events, say which must come first, and get a schedule.")
+st.markdown(
+    '<div class="hero"><h1>Fest<span>Engine</span></h1>'
+    '<p>Can discrete maths organise a college fest? Add events, say which must come first, '
+    'and get a complete schedule with rooms and volunteers.</p></div>',
+    unsafe_allow_html=True)
 
 # --- Sidebar: all the inputs ---
 with st.sidebar:
-    st.header("Resources")
-    rooms = st.number_input("Rooms", min_value=1, value=3)
-    vols = st.number_input("Volunteers", min_value=0, value=12)
+    st.markdown("### Fest setup")
+    c1, c2 = st.columns(2)
+    rooms = c1.number_input("Rooms", min_value=1, value=3)
+    vols = c2.number_input("Volunteers", min_value=0, value=12)
 
-    st.header("Events")
-    with st.form("add_event", clear_on_submit=True):
-        new_name = st.text_input("Event name")
-        new_need = st.number_input("Volunteers needed", min_value=0, value=2)
-        if st.form_submit_button("Add event"):
-            new_name = new_name.strip()
-            if new_name == "":
-                st.error("Enter an event name.")
-            elif new_name in names:
-                st.error(f"{new_name} is already added.")
-            else:
-                events.append((new_name, int(new_need)))
-                st.rerun()
-    if names:
-        gone = st.selectbox("Remove an event", [""] + names)
-        if gone and st.button("Remove event"):
-            st.session_state.events = [e for e in events if e[0] != gone]
-            st.session_state.rules = [r for r in rules if gone not in r]
-            st.rerun()
-
-    st.header("Order rules")
-    if len(names) >= 2:
-        with st.form("add_rule"):
-            first = st.selectbox("This event...", names, key="first")
-            second = st.selectbox("...comes before this one", names, index=1, key="second")
-            if st.form_submit_button("Add rule"):
-                if first == second:
-                    st.error("Choose two different events.")
-                elif (first, second) in rules:
-                    st.error("That rule is already added.")
+    with st.expander("Events", expanded=True):
+        with st.form("add_event", clear_on_submit=True):
+            new_name = st.text_input("Event name")
+            new_need = st.number_input("Volunteers needed", min_value=0, value=2)
+            if st.form_submit_button("Add event"):
+                new_name = new_name.strip()
+                if new_name == "":
+                    st.error("Enter an event name.")
+                elif new_name in names:
+                    st.error(f"{new_name} is already added.")
                 else:
-                    rules.append((first, second))
+                    events.append((new_name, int(new_need)))
                     st.rerun()
-    else:
-        st.info("Add at least two events to make a rule.")
-    if rules:
-        labels = [f"{a} -> {b}" for a, b in rules]
-        pick = st.selectbox("Remove a rule", [""] + labels)
-        if pick and st.button("Remove rule"):
-            rules.pop(labels.index(pick))
+        if names:
+            gone = st.selectbox("Remove an event", [""] + names)
+            if gone and st.button("Remove event"):
+                st.session_state.events = [e for e in events if e[0] != gone]
+                st.session_state.rules = [r for r in rules if gone not in r]
+                st.rerun()
+
+    with st.expander("Order rules", expanded=True):
+        if len(names) >= 2:
+            with st.form("add_rule"):
+                first = st.selectbox("This event...", names, key="first")
+                second = st.selectbox("...comes before this one", names, index=1, key="second")
+                if st.form_submit_button("Add rule"):
+                    if first == second:
+                        st.error("Choose two different events.")
+                    elif (first, second) in rules:
+                        st.error("That rule is already added.")
+                    else:
+                        rules.append((first, second))
+                        st.rerun()
+        else:
+            st.info("Add at least two events to make a rule.")
+        if rules:
+            labels = [f"{a} -> {b}" for a, b in rules]
+            pick = st.selectbox("Remove a rule", [""] + labels)
+            if pick and st.button("Remove rule"):
+                rules.pop(labels.index(pick))
+                st.rerun()
+
+    with st.expander("Import from CSV"):
+        st.caption("Columns: event, volunteers needed, events that must come first (separated by ;).")
+        upload = st.file_uploader("CSV file", type=["csv", "txt"])
+        if upload is not None and st.button("Load this file"):
+            ev, ru = parse_csv(upload.getvalue().decode("utf-8"))
+            st.session_state.events, st.session_state.rules = ev, ru
             st.rerun()
 
-    st.header("Import from CSV")
-    st.caption("Columns: event, volunteers needed, events that must come first (separated by ;).")
-    upload = st.file_uploader("CSV file", type=["csv", "txt"])
-    if upload is not None and st.button("Load this file"):
-        ev, ru = parse_csv(upload.getvalue().decode("utf-8"))
-        st.session_state.events, st.session_state.rules = ev, ru
-        st.rerun()
-
-    if st.button("Try an example"):
+    b1, b2 = st.columns(2)
+    if b1.button("Load example"):
         st.session_state.events, st.session_state.rules = parse_csv(EXAMPLE_CSV)
         st.rerun()
-    if st.button("Clear all"):
+    if b2.button("Clear all"):
         st.session_state.events, st.session_state.rules = [], []
         st.rerun()
 
-# --- Show what has been entered ---
-left, right = st.columns(2)
-with left:
-    st.subheader("Events")
-    if events:
-        st.table(pd.DataFrame(events, columns=["Event", "Volunteers needed"]))
-    else:
-        st.write("No events yet.")
-with right:
-    st.subheader("Order rules")
-    if rules:
-        st.table(pd.DataFrame(rules, columns=["Comes first", "Comes after"]))
-    else:
-        st.write("No rules yet.")
-
+# --- Welcome screen when there is nothing yet ---
 if not events:
-    st.info("Add your events and rules, or press 'Try an example' in the sidebar.")
+    st.markdown("""
+<div class="card">
+<h3>How it works</h3>
+<div class="step"><div class="num">1</div><div><b>Add your events</b> in the sidebar, with the number of volunteers each one needs.</div></div>
+<div class="step"><div class="num">2</div><div><b>Add order rules</b>, like "Workshop A comes before the Final". Events with no rule between them can run together.</div></div>
+<div class="step"><div class="num">3</div><div><b>Set rooms and volunteers.</b> The schedule, diagram and workload appear here automatically.</div></div>
+</div>
+""", unsafe_allow_html=True)
+    if st.button("Load the example fest", type="primary"):
+        st.session_state.events, st.session_state.rules = parse_csv(EXAMPLE_CSV)
+        st.rerun()
     st.stop()
 
 # --- The maths happens here ---
 m = plan(events, rules, rooms=int(rooms), vols=int(vols))
 
+with st.expander("Your events and rules", expanded=(m.get("error") == "loop")):
+    left, right = st.columns(2)
+    with left:
+        st.table(pd.DataFrame(events, columns=["Event", "Volunteers needed"]))
+    with right:
+        if rules:
+            st.table(pd.DataFrame(rules, columns=["Comes first", "Comes after"]))
+        else:
+            st.write("No rules yet.")
+
 if m.get("error") == "loop":
-    st.error("These rules cannot all be followed. Some events depend on each other in a loop.")
-    st.write("Events caught in the loop: " + ", ".join(m["loop"]))
+    st.error("These rules cannot all be followed. Some events depend on each other in a loop, "
+             "so no valid schedule exists.")
+    st.write("Events caught in the loop: **" + ", ".join(m["loop"]) + "**")
     st.caption("A set of order rules only works if no event ends up having to come before itself. "
-               "That is what makes it a partial order.")
+               "That is what makes it a partial order. Remove one of the rules in the loop.")
     st.stop()
 
 names = m["names"]
-st.divider()
-st.header(f"Fest plan: {len(m['slots'])} time slots")
-st.write(f"{len(names)} events, {m['rooms']} rooms, {m['vols']} volunteers. "
-         "The order rules are valid, so they form a partial order.")
+slots = m["slots"]
+
+# --- Summary numbers ---
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Events", len(names))
+k2.metric("Time slots", len(slots))
+k3.metric("Longest chain", len(m["chain"]))
+k4.metric("Busiest slot", f"{max(s['sum'] for s in slots)} volunteers")
+
+extra = len(slots) - len(m["chain"])
+if extra > 0:
+    st.info(f"The longest chain needs {len(m['chain'])} levels, but {m['rooms']} rooms and "
+            f"{m['vols']} volunteers force {extra} extra slot(s). That is the pigeonhole principle: "
+            "more events than space means some must wait.")
+else:
+    st.success("The schedule is as short as the longest chain allows.")
 for w in m["warnings"]:
     st.warning(w)
 
-# Schedule table: rows are slots, columns are rooms
-st.subheader("Schedule")
-st.caption("Events in the same row have no rule between them, so they run at the same time "
-           "in different rooms, with different volunteers.")
-table = []
-for slot in m["slots"]:
-    row = []
-    for r in range(m["rooms"]):
-        if r < len(slot["items"]):
-            ev = slot["items"][r]
-            who = ", ".join(f"V{v + 1}" for v in m["assigned"][ev])
-            row.append(f"{names[ev]} ({who})")
-        else:
-            row.append("free")
-    table.append(row)
-st.table(pd.DataFrame(table,
-                      index=[f"Slot {i + 1}" for i in range(len(table))],
-                      columns=[f"Room {r + 1}" for r in range(m["rooms"])]))
+# --- Results in tabs ---
+t1, t2, t3, t4, t5 = st.tabs(["Schedule", "Hasse diagram", "Order and chain", "Same time", "Volunteers"])
 
-# Hasse diagram, drawn from a Graphviz description (no extra install needed)
-st.subheader("Hasse diagram")
-st.caption("Each arrow means 'must come before'. Arrows that follow from others are left out. "
-           "Events in the same column are on the same level.")
-colours = ["#d5ecee", "#fbdce8", "#e1e4fa", "#fdeccb", "#daf0d8", "#efdcf5"]
-dot = ['digraph { rankdir=LR; node [shape=box, style="rounded,filled", fontname="Helvetica"];']
-for i, name in enumerate(names):
-    safe = name.replace('"', "'")
-    dot.append(f'"{safe}" [fillcolor="{colours[m["level"][i] % 6]}"];')
-for L in range(m["max_level"] + 1):
-    same = " ".join(f'"{names[i].replace(chr(34), chr(39))}";' for i in range(len(names)) if m["level"][i] == L)
-    dot.append("{ rank=same; " + same + " }")
-for a, b in m["hasse"]:
-    dot.append(f'"{names[a].replace(chr(34), chr(39))}" -> "{names[b].replace(chr(34), chr(39))}" [color="#d6246e"];')
-dot.append("}")
-st.graphviz_chart("\n".join(dot))
+with t1:
+    st.caption("Events in the same row have no rule between them, so they run at the same time "
+               "in different rooms, with different volunteers.")
+    rows = ['<div class="scroll"><table class="sched"><tr><th>Slot</th>']
+    rows += [f"<th>Room {r + 1}</th>" for r in range(m["rooms"])]
+    rows.append("</tr>")
+    for si, slot in enumerate(slots):
+        rows.append(f'<tr><td class="slot">Slot {si + 1}</td>')
+        for r in range(m["rooms"]):
+            if r < len(slot["items"]):
+                ev = slot["items"][r]
+                who = ", ".join(f"V{v + 1}" for v in m["assigned"][ev])
+                colour = LEVEL_COLOURS[m["level"][ev] % 6]
+                rows.append(f'<td style="background:{colour}">{esc(names[ev])}'
+                            f'<span class="who">{m["need"][ev]} volunteers: {esc(who)}</span></td>')
+            else:
+                rows.append('<td class="free">free</td>')
+        rows.append("</tr>")
+    rows.append("</table></div>")
+    st.markdown("".join(rows), unsafe_allow_html=True)
 
-st.subheader("Longest chain")
-st.caption(f"These events must happen one after another, so at least {len(m['chain'])} levels "
-           "are unavoidable, however many rooms you have.")
-st.write(" → ".join(names[i] for i in m["chain"]))
+with t2:
+    st.caption("Each arrow means 'must come before'. Arrows that follow from others are left out, "
+               "so only direct links remain. Events in the same column are on the same level.")
 
-st.subheader("One valid order (topological order)")
-st.write(" → ".join(names[i] for i in m["order"]))
+    def q(name):
+        return name.replace('"', "'")
 
-st.subheader("Which events can happen at the same time?")
-st.caption("Two events can overlap when neither has to come before the other.")
-for name, mates in m["alongside"].items():
-    st.write(f"**{name}:** " + (", ".join(mates) if mates else "must run on its own"))
+    dot = ['digraph { rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.9;',
+           'node [shape=box, style="rounded,filled", fontname="Helvetica", fontcolor="#14262b", color="#14262b"];',
+           'edge [color="#d6246e", penwidth=1.4];']
+    for i, name in enumerate(names):
+        dot.append(f'"{q(name)}" [fillcolor="{LEVEL_COLOURS[m["level"][i] % 6]}"];')
+    for L in range(m["max_level"] + 1):
+        same = " ".join(f'"{q(names[i])}";' for i in range(len(names)) if m["level"][i] == L)
+        dot.append("{ rank=same; " + same + " }")
+    for a, b in m["hasse"]:
+        dot.append(f'"{q(names[a])}" -> "{q(names[b])}";')
+    dot.append("}")
+    st.graphviz_chart("\n".join(dot))
 
-st.subheader("Volunteer workload")
-if m["vols"] > 0:
-    st.bar_chart(pd.Series(m["load"], index=[f"V{v + 1}" for v in range(m["vols"])]))
-else:
-    st.write("No volunteers entered.")
+with t3:
+    st.subheader("Longest chain")
+    st.caption(f"These events must happen one after another, so at least {len(m['chain'])} levels "
+               "are unavoidable, however many rooms you have.")
+    st.markdown(chain_html([names[i] for i in m["chain"]]), unsafe_allow_html=True)
+    st.subheader("One valid order (topological order)")
+    st.caption("Every event appears after the events it depends on. More than one valid order can exist.")
+    st.markdown(chain_html([names[i] for i in m["order"]]), unsafe_allow_html=True)
+
+with t4:
+    st.caption("Two events can overlap when neither has to come before the other.")
+    st.table(pd.DataFrame(
+        [(name, ", ".join(mates) if mates else "must run on its own")
+         for name, mates in m["alongside"].items()],
+        columns=["Event", "Can run alongside"]))
+
+with t5:
+    if m["vols"] > 0:
+        st.caption("How many events each volunteer works. The least busy volunteers are picked first, "
+                   "so the work is shared fairly.")
+        st.bar_chart(pd.Series(m["load"], index=[f"V{v + 1}" for v in range(m["vols"])]))
+        st.write(f"Busiest volunteer: **{max(m['load'])}** events. Least busy: **{min(m['load'])}** events.")
+    else:
+        st.write("No volunteers entered.")
+
+st.caption("Built with Python and Streamlit. Maths used: partial orders, Hasse diagrams, "
+           "Warshall's algorithm, topological ordering and the pigeonhole principle.")
